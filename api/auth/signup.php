@@ -5,6 +5,8 @@ require_once '../../config/config.php';
 require_once '../../config/db.php';
 require_once '../../helpers/response.php';
 
+session_start(); // start session here
+
 $data = json_decode(file_get_contents("php://input"));
 
 if (!isset($data->username, $data->email, $data->password)) {
@@ -50,7 +52,25 @@ try {
     $stmt->bindParam(':password', $password_hash);
 
     if ($stmt->execute()) {
-        send_json_response(["success" => true, "message" => "User registered successfully."]);
+        // Get the inserted user ID
+        $newUserId = $db->lastInsertId();
+
+        // Set session variables
+        $_SESSION['user_id'] = $newUserId;
+        $_SESSION['username'] = $username;
+        $_SESSION['email'] = $email;
+        $_SESSION['role'] = 'user'; // or whatever default role you want
+
+        send_json_response([
+            "success" => true,
+            "message" => "User registered and logged in successfully.",
+            "user" => [
+                "id" => $newUserId,
+                "username" => $username,
+                "email" => $email,
+                "role" => 'user'
+            ]
+        ]);
     } else {
         send_json_response(["success" => false, "message" => "Failed to register user."], 500);
     }
