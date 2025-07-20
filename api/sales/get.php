@@ -23,11 +23,21 @@ try {
     $db = new PDO(DB_DSN, DB_USER, DB_PASS);
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+    // JOIN with products table to get product name
     $stmt = $db->prepare("
-        SELECT id, product_id, quantity, price, notes, sold_at, user_id
-        FROM sales
-        WHERE user_id = :user_id
-        ORDER BY sold_at DESC
+        SELECT 
+            s.id, 
+            s.product_id, 
+            s.quantity, 
+            s.price, 
+            s.notes, 
+            s.sold_at, 
+            s.user_id,
+            p.name AS product_name
+        FROM sales s
+        LEFT JOIN products p ON s.product_id = p.id
+        WHERE s.user_id = :user_id
+        ORDER BY s.sold_at DESC
     ");
 
     $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
@@ -45,4 +55,4 @@ try {
         "message" => "Database error: " . $e->getMessage()
     ]);
 }
-
+?>
