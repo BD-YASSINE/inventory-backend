@@ -33,12 +33,12 @@ try {
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$user) {
-        send_json_response(["success" => false, "message" => "User not found."], 401);
+        send_json_response(["success" => false, "message" => "Email does not exist, Create an account."], 401);
         exit;
     }
 
     if (!password_verify($password, $user['password'])) {
-        send_json_response(["success" => false, "message" => "Incorrect password."], 401);
+        send_json_response(["success" => false, "message" => "Incorrect password, please try again."], 401);
         exit;
     }
 
