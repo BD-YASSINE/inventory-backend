@@ -6,44 +6,26 @@ require_once '../../config/config.php';
 require_once '../../config/db.php';
 require_once '../../helpers/response.php';
 
-// Get input JSON data
+// Get input JSON
 $input = json_decode(file_get_contents('php://input'), true);
 
-// Validate required fields
-if (
-    !isset($input['id']) ||
-    !isset($input['user_id']) ||
-    !isset($input['name']) ||
-    !isset($input['description']) ||
-    !isset($input['category'])
-) {
+if (!isset($input['id']) || !isset($input['user_id'])) {
     send_json_response([
         "success" => false,
-        "message" => "Missing required fields: id, user_id, name, description, category."
+        "message" => "Missing id or user_id."
     ]);
     exit;
 }
 
 $id = intval($input['id']);
 $user_id = intval($input['user_id']);
-$name = trim($input['name']);
-$description = trim($input['description']);
-$category = trim($input['category']);
 
 try {
     $db = new PDO(DB_DSN, DB_USER, DB_PASS);
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    // Update only if product belongs to this user
-    $stmt = $db->prepare("
-        UPDATE products 
-        SET name = :name, description = :description, category = :category 
-        WHERE id = :id AND user_id = :user_id
-    ");
-
-    $stmt->bindParam(':name', $name);
-    $stmt->bindParam(':description', $description);
-    $stmt->bindParam(':category', $category);
+    // Delete only if sale belongs to user
+    $stmt = $db->prepare("DELETE FROM sales WHERE id = :id AND user_id = :user_id");
     $stmt->bindParam(':id', $id, PDO::PARAM_INT);
     $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
 
@@ -52,12 +34,12 @@ try {
     if ($stmt->rowCount() > 0) {
         send_json_response([
             "success" => true,
-            "message" => "Product updated successfully."
+            "message" => "Sale record deleted successfully."
         ]);
     } else {
         send_json_response([
             "success" => false,
-            "message" => "Product not found or you don't have permission to update it."
+            "message" => "Sale record not found or you don't have permission to delete it."
         ]);
     }
 } catch (PDOException $e) {

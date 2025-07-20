@@ -9,6 +9,7 @@ $data = json_decode(file_get_contents("php://input"));
 
 if (!isset($data->username, $data->email, $data->password)) {
     send_json_response(["success" => false, "message" => "Missing fields: username, email, and password are required."], 400);
+    exit;
 }
 
 $username = htmlspecialchars(trim($data->username));
@@ -17,37 +18,46 @@ $password = $data->password;
 
 if (!$email) {
     send_json_response(["success" => false, "message" => "Invalid email format."], 400);
+    exit;
 }
 
 if (strlen($password) < 6) {
     send_json_response(["success" => false, "message" => "Password must be at least 6 characters."], 400);
+    exit;
 }
 
-// Check if email already registered
-$stmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
-if (!$stmt) {
-    send_json_response(["success" => false, "message" => "Database error: " . $conn->error], 500);
-}
-$stmt->bind_param("s", $email);
-$stmt->execute();
-$stmt->store_result();
-if ($stmt->num_rows > 0) {
-    $stmt->close();
-    send_json_response(["success" => false, "message" => "Email already registered."], 409);
-}
-$stmt->close();
+try {
+    $db = new PDO(DB_DSN, DB_USER, DB_PASS);
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-// Hash password and insert
-$password_hash = password_hash($password, PASSWORD_DEFAULT);
-$stmt = $conn->prepare("INSERT INTO users (username, email, password) VALUES (?, ?, ?)");
-if (!$stmt) {
-    send_json_response(["success" => false, "message" => "Database error: " . $conn->error], 500);
+    // Check if email already registered
+    $stmt = $db->prepare("SELECT id FROM users WHERE email = :email");
+    $stmt->bindParam(':email', $email);
+    $stmt->execute();
+
+    if ($stmt->fetch()) {
+        send_json_response(["success" => false, "message" => "Email already registered."], 409);
+        exit;
+    }
+
+    // Hash password
+    $password_hash = password_hash($password, PASSWORD_DEFAULT);
+
+    // Insert new user
+    $stmt = $db->prepare("INSERT INTO users (username, email, password, created_at) VALUES (:username, :email, :password, NOW())");
+    $stmt->bindParam(':username', $username);
+    $stmt->bindParam(':email', $email);
+    $stmt->bindParam(':password', $password_hash);
+
+    if ($stmt->execute()) {
+        send_json_response(["success" => true, "message" => "User registered successfully."]);
+    } else {
+        send_json_response(["success" => false, "message" => "Failed to register user."], 500);
+    }
+} catch (PDOException $e) {
+    send_json_response([
+        "success" => false,
+        "message" => "Database error: " . $e->getMessage()
+    ], 500);
 }
-$stmt->bind_param("sss", $username, $email, $password_hash);
-if ($stmt->execute()) {
-    send_json_response(["success" => true, "message" => "User registered successfully."]);
-} else {
-    send_json_response(["success" => false, "message" => "Failed to register user."], 500);
-}
-$stmt->close();
-$conn->close();
+

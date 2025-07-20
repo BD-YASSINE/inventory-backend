@@ -9,6 +9,7 @@ $data = json_decode(file_get_contents("php://input"));
 
 if (!isset($data->email, $data->code, $data->password)) {
     send_json_response(["success" => false, "message" => "Email, code and new password are required."], 400);
+    exit;
 }
 
 $email = filter_var($data->email, FILTER_VALIDATE_EMAIL);
@@ -17,38 +18,45 @@ $password = $data->password;
 
 if (!$email || strlen($password) < 6) {
     send_json_response(["success" => false, "message" => "Invalid email or weak password."], 400);
+    exit;
 }
 
-// Check code and expiry
-$stmt = $conn->prepare("SELECT id, reset_code_expiry FROM users WHERE email = ? AND reset_code = ?");
-if (!$stmt) {
-    send_json_response(["success" => false, "message" => "Database error: " . $conn->error], 500);
-}
-$stmt->bind_param("ss", $email, $code);
-$stmt->execute();
-$stmt->store_result();
-if ($stmt->num_rows === 0) {
-    send_json_response(["success" => false, "message" => "Invalid reset code or email."], 400);
-}
-$stmt->bind_result($user_id, $expiry);
-$stmt->fetch();
-$stmt->close();
+try {
+    $db = new PDO(DB_DSN, DB_USER, DB_PASS);
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-if (strtotime($expiry) < time()) {
-    send_json_response(["success" => false, "message" => "Reset code expired."], 400);
+    // Check if reset code and email are valid
+    $stmt = $db->prepare("SELECT id, reset_code_expiry FROM users WHERE email = :email AND reset_code = :code");
+    $stmt->bindParam(':email', $email);
+    $stmt->bindParam(':code', $code);
+    $stmt->execute();
+
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$user) {
+        send_json_response(["success" => false, "message" => "Invalid reset code or email."], 400);
+        exit;
+    }
+
+    if (strtotime($user['reset_code_expiry']) < time()) {
+        send_json_response(["success" => false, "message" => "Reset code expired."], 400);
+        exit;
+    }
+
+    // Hash new password
+    $password_hash = password_hash($password, PASSWORD_DEFAULT);
+
+    // Update password and clear reset code fields
+    $updateStmt = $db->prepare("UPDATE users SET password = :password, reset_code = NULL, reset_code_expiry = NULL WHERE id = :id");
+    $updateStmt->bindParam(':password', $password_hash);
+    $updateStmt->bindParam(':id', $user['id']);
+
+    if ($updateStmt->execute()) {
+        send_json_response(["success" => true, "message" => "Password reset successful."]);
+    } else {
+        send_json_response(["success" => false, "message" => "Failed to reset password."], 500);
+    }
+} catch (PDOException $e) {
+    send_json_response(["success" => false, "message" => "Database error: " . $e->getMessage()], 500);
 }
 
-// Hash new password and update
-$password_hash = password_hash($password, PASSWORD_DEFAULT);
-$stmt = $conn->prepare("UPDATE users SET password = ?, reset_code = NULL, reset_code_expiry = NULL WHERE id = ?");
-if (!$stmt) {
-    send_json_response(["success" => false, "message" => "Database error: " . $conn->error], 500);
-}
-$stmt->bind_param("si", $password_hash, $user_id);
-if ($stmt->execute()) {
-    send_json_response(["success" => true, "message" => "Password reset successful."]);
-} else {
-    send_json_response(["success" => false, "message" => "Failed to reset password."], 500);
-}
-$stmt->close();
-$conn->close();

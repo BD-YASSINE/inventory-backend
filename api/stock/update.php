@@ -1,8 +1,73 @@
 <?php
 require_once '../../helpers/cors.php';
 handle_cors();
+
 require_once '../../config/config.php';
 require_once '../../config/db.php';
 require_once '../../helpers/response.php';
 
-send_json_response(["success" => true, "message" => "Endpoint works, implement your logic."]);
+// Get JSON input
+$input = json_decode(file_get_contents('php://input'), true);
+
+// Validate required fields
+if (
+    !isset($input['id']) ||
+    !isset($input['user_id']) ||
+    !isset($input['quantity'])
+) {
+    send_json_response([
+        "success" => false,
+        "message" => "Missing required fields: id, user_id, quantity."
+    ]);
+    exit;
+}
+
+$id = intval($input['id']);
+$user_id = intval($input['user_id']);
+$quantity = intval($input['quantity']);
+$notes = isset($input['notes']) ? trim($input['notes']) : null;
+$updated_at = date('Y-m-d H:i:s');
+
+try {
+    $db = new PDO(DB_DSN, DB_USER, DB_PASS);
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    // Update stock only if it belongs to user
+    $stmt = $db->prepare("
+        UPDATE stock
+        SET quantity = :quantity, notes = :notes, updated_at = :updated_at
+        WHERE id = :id AND user_id = :user_id
+    ");
+
+    $stmt->bindParam(':quantity', $quantity, PDO::PARAM_INT);
+
+    if ($notes === null || $notes === '') {
+        $stmt->bindValue(':notes', null, PDO::PARAM_NULL);
+    } else {
+        $stmt->bindParam(':notes', $notes, PDO::PARAM_STR);
+    }
+
+    $stmt->bindParam(':updated_at', $updated_at);
+    $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+    $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
+
+    $stmt->execute();
+
+    if ($stmt->rowCount() > 0) {
+        send_json_response([
+            "success" => true,
+            "message" => "Stock updated successfully."
+        ]);
+    } else {
+        send_json_response([
+            "success" => false,
+            "message" => "Stock not found or you don't have permission to update it."
+        ]);
+    }
+} catch (PDOException $e) {
+    send_json_response([
+        "success" => false,
+        "message" => "Database error: " . $e->getMessage()
+    ]);
+}
+
