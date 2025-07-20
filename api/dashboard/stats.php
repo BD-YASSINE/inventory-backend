@@ -25,19 +25,21 @@ try {
     $stmt = $db->prepare("SELECT COUNT(*) AS total_products FROM products WHERE user_id = :user_id");
     $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
     $stmt->execute();
-    $total_products = $stmt->fetch(PDO::FETCH_ASSOC)['total_products'];
+    $products = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total_products'];
 
     // Total stock quantity
     $stmt = $db->prepare("SELECT COALESCE(SUM(quantity), 0) AS total_stock FROM stock WHERE user_id = :user_id");
     $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
     $stmt->execute();
-    $total_stock = $stmt->fetch(PDO::FETCH_ASSOC)['total_stock'];
+    $stock = (int)$stmt->fetch(PDO::FETCH_ASSOC)['total_stock'];
 
-    // Total sales quantity
-    $stmt = $db->prepare("SELECT COALESCE(SUM(quantity), 0) AS total_sales FROM sales WHERE user_id = :user_id");
+    // Total sales quantity & total sales revenue
+    $stmt = $db->prepare("SELECT COALESCE(SUM(quantity), 0) AS total_sales, COALESCE(SUM(price * quantity), 0) AS total_revenue FROM sales WHERE user_id = :user_id");
     $stmt->bindParam(':user_id', $user_id, PDO::PARAM_INT);
     $stmt->execute();
-    $total_sales = $stmt->fetch(PDO::FETCH_ASSOC)['total_sales'];
+    $salesData = $stmt->fetch(PDO::FETCH_ASSOC);
+    $sales = (int)$salesData['total_sales'];
+    $revenue = (float)$salesData['total_revenue'];
 
     // Sales per day for last 7 days
     $stmt = $db->prepare("
@@ -52,7 +54,7 @@ try {
     $stmt->execute();
     $sales_per_day_raw = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Prepare sales per day with zero-fill for days with no sales
+    // Fill missing days
     $sales_per_day = [];
     for ($i = 6; $i >= 0; $i--) {
         $date = date('Y-m-d', strtotime("-$i days"));
@@ -62,13 +64,22 @@ try {
         $sales_per_day[$row['sale_date']] = (int)$row['total_quantity'];
     }
 
+    $daily_sales = [];
+    foreach ($sales_per_day as $date => $quantity) {
+        $daily_sales[] = [
+            "day" => $date,
+            "sales" => $quantity
+        ];
+    }
+
     send_json_response([
         "success" => true,
         "data" => [
-            "total_products" => (int)$total_products,
-            "total_stock" => (int)$total_stock,
-            "total_sales" => (int)$total_sales,
-            "sales_per_day" => $sales_per_day
+            "total_products" => $products,
+            "total_stock_entries" => $stock,
+            "total_sales" => $sales,
+            "total_sales_amount" => $revenue,
+            "daily_sales" => $daily_sales
         ]
     ]);
 } catch (PDOException $e) {

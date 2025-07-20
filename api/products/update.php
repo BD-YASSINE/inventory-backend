@@ -1,4 +1,6 @@
 <?php
+session_start();
+
 require_once '../../helpers/cors.php';
 handle_cors();
 
@@ -6,26 +8,34 @@ require_once '../../config/config.php';
 require_once '../../config/db.php';
 require_once '../../helpers/response.php';
 
+// Check if user is logged in
+if (!isset($_SESSION['user_id'])) {
+    send_json_response([
+        "success" => false,
+        "message" => "Session expired. Please log in again."
+    ], 401);
+    exit;
+}
+
 // Get input JSON data
 $input = json_decode(file_get_contents('php://input'), true);
 
-// Validate required fields
+// Validate required fields (no user_id from client now)
 if (
     !isset($input['id']) ||
-    !isset($input['user_id']) ||
     !isset($input['name']) ||
     !isset($input['description']) ||
     !isset($input['category'])
 ) {
     send_json_response([
         "success" => false,
-        "message" => "Missing required fields: id, user_id, name, description, category."
+        "message" => "Missing required fields: id, name, description, category."
     ]);
     exit;
 }
 
 $id = intval($input['id']);
-$user_id = intval($input['user_id']);
+$user_id = intval($_SESSION['user_id']); // use user id from session
 $name = trim($input['name']);
 $description = trim($input['description']);
 $category = trim($input['category']);

@@ -1,4 +1,6 @@
 <?php
+session_start();
+
 require_once '../../helpers/cors.php';
 handle_cors();
 
@@ -6,25 +8,34 @@ require_once '../../config/config.php';
 require_once '../../config/db.php';
 require_once '../../helpers/response.php';
 
+// Check if user is logged in via session
+if (!isset($_SESSION['user_id'])) {
+    send_json_response([
+        "success" => false,
+        "message" => "Session expired. Please log in again."
+    ], 401);
+    exit;
+}
+
+$user_id = intval($_SESSION['user_id']);
+
 // Get JSON input
 $input = json_decode(file_get_contents('php://input'), true);
 
 // Validate required fields
 if (
     !isset($input['product_id']) ||
-    !isset($input['quantity']) ||
-    !isset($input['user_id'])
+    !isset($input['quantity'])
 ) {
     send_json_response([
         "success" => false,
-        "message" => "Missing required fields: product_id, quantity, user_id."
+        "message" => "Missing required fields: product_id, quantity."
     ]);
     exit;
 }
 
 $product_id = intval($input['product_id']);
 $quantity = intval($input['quantity']);
-$user_id = intval($input['user_id']);
 $notes = isset($input['notes']) ? trim($input['notes']) : null;
 $updated_at = date('Y-m-d H:i:s'); // current datetime
 

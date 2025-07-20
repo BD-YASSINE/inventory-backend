@@ -1,4 +1,6 @@
 <?php
+session_start();
+
 require_once '../../helpers/cors.php';
 handle_cors();
 
@@ -6,18 +8,16 @@ require_once '../../config/config.php';
 require_once '../../config/db.php';
 require_once '../../helpers/response.php';
 
-// Get JSON input
-$input = json_decode(file_get_contents('php://input'), true);
-
-if (!isset($input['user_id'])) {
+// Check if user is logged in via session
+if (!isset($_SESSION['user_id'])) {
     send_json_response([
         "success" => false,
-        "message" => "Missing user_id."
-    ]);
+        "message" => "Session expired. Please log in again."
+    ], 401);
     exit;
 }
 
-$user_id = intval($input['user_id']);
+$user_id = intval($_SESSION['user_id']);
 
 try {
     $db = new PDO(DB_DSN, DB_USER, DB_PASS);
@@ -45,3 +45,4 @@ try {
         "message" => "Database error: " . $e->getMessage()
     ]);
 }
+

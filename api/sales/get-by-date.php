@@ -1,4 +1,6 @@
 <?php
+session_start();
+
 require_once '../../helpers/cors.php';
 handle_cors();
 
@@ -6,24 +8,29 @@ require_once '../../config/config.php';
 require_once '../../config/db.php';
 require_once '../../helpers/response.php';
 
+// Check if user is logged in
+if (!isset($_SESSION['user_id'])) {
+    send_json_response([
+        "success" => false,
+        "message" => "Session expired. Please log in again."
+    ], 401);
+    exit;
+}
+
 // Get JSON input
 $input = json_decode(file_get_contents('php://input'), true);
 
 // Validate required fields
-if (
-    !isset($input['user_id']) ||
-    !isset($input['start_date']) ||
-    !isset($input['end_date'])
-) {
+if (!isset($input['start_date']) || !isset($input['end_date'])) {
     send_json_response([
         "success" => false,
-        "message" => "Missing required fields: user_id, start_date, end_date."
+        "message" => "Missing required fields: start_date and end_date."
     ]);
     exit;
 }
 
-$user_id = intval($input['user_id']);
-$start_date = $input['start_date']; // Expecting format: 'YYYY-MM-DD' or full datetime
+$user_id = intval($_SESSION['user_id']);  // use session user_id
+$start_date = $input['start_date']; // 'YYYY-MM-DD' or full datetime
 $end_date = $input['end_date'];
 
 try {

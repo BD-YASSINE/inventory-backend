@@ -1,4 +1,6 @@
 <?php
+session_start();
+
 require_once '../../helpers/cors.php';
 handle_cors();
 
@@ -9,21 +11,24 @@ require_once '../../helpers/response.php';
 // Get JSON input
 $input = json_decode(file_get_contents('php://input'), true);
 
-// Validate required fields
-if (
-    !isset($input['id']) ||
-    !isset($input['user_id']) ||
-    !isset($input['quantity'])
-) {
+if (!isset($input['id']) || !isset($input['quantity'])) {
     send_json_response([
         "success" => false,
-        "message" => "Missing required fields: id, user_id, quantity."
+        "message" => "Missing required fields: id, quantity."
     ]);
     exit;
 }
 
+if (!isset($_SESSION['user_id'])) {
+    send_json_response([
+        "success" => false,
+        "message" => "Session expired. Please log in again."
+    ], 401);
+    exit;
+}
+
 $id = intval($input['id']);
-$user_id = intval($input['user_id']);
+$user_id = intval($_SESSION['user_id']);
 $quantity = intval($input['quantity']);
 $notes = isset($input['notes']) ? trim($input['notes']) : null;
 $updated_at = date('Y-m-d H:i:s');
@@ -32,7 +37,6 @@ try {
     $db = new PDO(DB_DSN, DB_USER, DB_PASS);
     $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    // Update stock only if it belongs to user
     $stmt = $db->prepare("
         UPDATE stock
         SET quantity = :quantity, notes = :notes, updated_at = :updated_at
@@ -70,4 +74,5 @@ try {
         "message" => "Database error: " . $e->getMessage()
     ]);
 }
+
 
