@@ -1,22 +1,19 @@
 <?php
-require_once __DIR__ . '/../config/config.php';
-
 function handle_cors() {
-    // Allow this origin — update FRONTEND_URL in config.php accordingly
-    $allowed_origins = [FRONTEND_URL];
-
+    $allowed_origins = ['http://localhost:5173'];
     $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 
     if (in_array($origin, $allowed_origins)) {
         header('Access-Control-Allow-Origin: ' . $origin);
-        header('Vary: Origin');
         header('Access-Control-Allow-Credentials: true');
-        header('Access-Control-Allow-Headers: Content-Type, Authorization, X-CSRF-Token');
-        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+        header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+        header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+        header('Vary: Origin');
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+        // Preflight request
         http_response_code(200);
-        exit;
+        exit();
     }
 }

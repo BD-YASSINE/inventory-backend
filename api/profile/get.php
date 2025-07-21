@@ -8,26 +8,22 @@ require_once '../../helpers/response.php';
 session_start();
 
 if (!isset($_SESSION['user_id'])) {
-    send_json_response(["success" => false, "message" => "User not authenticated"]);
+    send_json_response(["success" => false, "message" => "Not authenticated"], 401);
     exit;
 }
 
 $user_id = $_SESSION['user_id'];
 
 try {
-    $stmt = $pdo->prepare("SELECT id, username, email, role FROM users WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, message, created_at, target_component FROM notifications WHERE user_id = ? ORDER BY created_at DESC");
     $stmt->execute([$user_id]);
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$user) {
-        send_json_response(["success" => false, "message" => "User not found"]);
-        exit;
-    }
+    $notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     send_json_response([
         "success" => true,
-        "data" => $user,
+        "notifications" => $notifications
     ]);
 } catch (Exception $e) {
-    send_json_response(["success" => false, "message" => "Server error"]);
+    send_json_response(["success" => false, "message" => "Error loading notifications", "error" => $e->getMessage()], 500);
 }
+?>
