@@ -18,30 +18,37 @@ if (!isset($_SESSION['user_id'], $data->password)) {
 $userId = $_SESSION['user_id'];
 $password = $data->password;
 
-// Get user and verify password
-$stmt = $conn->prepare("SELECT password FROM users WHERE id = ?");
-$stmt->bind_param("i", $userId);
-$stmt->execute();
-$result = $stmt->get_result();
+try {
+    $db = new PDO(DB_DSN, DB_USER, DB_PASS);
+    $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-if ($result->num_rows === 0) {
-    send_json_response(["success" => false, "message" => "User not found."], 404);
-    exit;
+    // Get user hashed password
+    $stmt = $db->prepare("SELECT password FROM users WHERE id = :id");
+    $stmt->bindParam(":id", $userId, PDO::PARAM_INT);
+    $stmt->execute();
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if (!$row) {
+        send_json_response(["success" => false, "message" => "User not found."], 404);
+        exit;
+    }
+
+    if (!password_verify($password, $row['password'])) {
+        send_json_response(["success" => false, "message" => "Incorrect password."], 403);
+        exit;
+    }
+
+    // Delete user
+    $stmt = $db->prepare("DELETE FROM users WHERE id = :id");
+    $stmt->bindParam(":id", $userId, PDO::PARAM_INT);
+    $stmt->execute();
+
+    session_destroy();
+
+    send_json_response(["success" => true, "message" => "Account deleted."]);
+
+} catch (PDOException $e) {
+    send_json_response(["success" => false, "message" => "Database error: " . $e->getMessage()], 500);
 }
-
-$row = $result->fetch_assoc();
-
-if (!password_verify($password, $row['password'])) {
-    send_json_response(["success" => false, "message" => "Incorrect password."], 403);
-    exit;
-}
-
-// Delete user
-$stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
-$stmt->bind_param("i", $userId);
-$stmt->execute();
-
-session_destroy();
-send_json_response(["success" => true, "message" => "Account deleted."]);
 
 
