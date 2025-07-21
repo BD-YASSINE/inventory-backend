@@ -16,14 +16,20 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 
 try {
-    $stmt = $conn->prepare("SELECT id, message, target_component AS targetComponent, created_at AS date FROM notifications WHERE user_id = ? ORDER BY created_at DESC");
+    $stmt = $conn->prepare("SELECT id, message, target_component AS targetComponent, created_at AS date, seen FROM notifications WHERE user_id = ? ORDER BY created_at DESC");
     $stmt->bind_param("i", $user_id);
     $stmt->execute();
     $result = $stmt->get_result();
 
     $notifications = [];
     while ($row = $result->fetch_assoc()) {
-        $notifications[] = $row;
+        $notifications[] = [
+            'id' => $row['id'],
+            'message' => $row['message'],
+            'targetComponent' => $row['targetComponent'],
+            'date' => $row['date'],
+            'isSeen' => (bool) $row['seen'], // ✅ convert to camelCase
+        ];
     }
 
     send_json_response($notifications);
@@ -31,5 +37,6 @@ try {
     send_json_response(['success' => false, 'message' => 'Error fetching notifications.'], 500);
 }
 ?>
+
 
 
