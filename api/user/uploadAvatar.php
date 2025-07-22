@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-require_once '../../config/db.php'; // adjust as needed
+require_once '../../config/db.php'; // provides $conn
 require_once '../../helpers/response.php';
 
 session_start();
@@ -29,7 +29,18 @@ if (!isset($_FILES['avatar'])) {
 }
 
 $file = $_FILES['avatar'];
-$targetDir = "../../uploads/avatars/";
+
+// Define the upload directory relative to this PHP file's location
+$targetDir = __DIR__ . "/../../uploads/avatars/";
+
+// Create directory if it doesn't exist
+if (!is_dir($targetDir)) {
+    if (!mkdir($targetDir, 0755, true)) {
+        send_json_response(["success" => false, "message" => "Failed to create upload directory"], 500);
+        exit;
+    }
+}
+
 $filename = uniqid() . "_" . basename($file["name"]);
 $targetFile = $targetDir . $filename;
 
@@ -38,9 +49,22 @@ if (!move_uploaded_file($file["tmp_name"], $targetFile)) {
     exit;
 }
 
-// Save to DB
-$relativePath = "/uploads/avatars/" . $filename; // fix path: added /avatars/
-$stmt = $pdo->prepare("UPDATE users SET avatar_url = ? WHERE id = ?");
-$stmt->execute([$relativePath, $userId]);
+// URL path to store in DB (to be used in frontend src)
+$relativePath = "/uploads/avatars/" . $filename;
+
+$stmt = $conn->prepare("UPDATE users SET avatar_url = ? WHERE id = ?");
+if (!$stmt) {
+    send_json_response(["success" => false, "message" => "Prepare failed: " . $conn->error], 500);
+    exit;
+}
+
+$stmt->bind_param("si", $relativePath, $userId);
+
+if (!$stmt->execute()) {
+    send_json_response(["success" => false, "message" => "Execute failed: " . $stmt->error], 500);
+    exit;
+}
+
+$stmt->close();
 
 send_json_response(["success" => true, "avatar_url" => $relativePath]);
